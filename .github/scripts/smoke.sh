@@ -101,7 +101,7 @@ tap_text "Add Today checklist"
 shot 10-pin-dialog 3
 tap_text "Add to home screen"
 sleep 4
-for name in "Add Progress orb" "Add Next up"; do
+for name in "Add Progress orb"; do
   adb shell am start -n $PKG/.MainActivity >/dev/null
   sleep 3
   adb shell input swipe 540 1900 540 600 400
@@ -118,14 +118,14 @@ sleep 2
 adb shell input keyevent 3
 sleep 2
 shot 11a-home-page0 1
-adb shell input swipe 950 1300 120 1300 300
-shot 11-home-widget 5
+for i in 1 2 3; do
+  adb shell input swipe 950 1300 120 1300 300
+  shot "11-home-page$i" 4
+done
 tap_text "Tomorrow"
 shot 11b-widget-tomorrow 4
 tap_text "Today"
 sleep 2
-adb shell input swipe 950 1300 120 1300 300
-shot 11c-home-next-page 4
 adb shell dumpsys appwidget | grep -E "provider=|id=" | head -20 > shots/appwidgets.txt || true
 
 adb shell am start -n $PKG/.MainActivity >/dev/null
