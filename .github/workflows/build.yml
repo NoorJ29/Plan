@@ -17,9 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -61,7 +61,8 @@ jobs:
           fi
 
       - name: Build signed APK
-        run: ./gradlew --no-daemon --stacktrace assembleRelease
+        shell: bash
+        run: ./gradlew --no-daemon assembleRelease 2>&1 | tee build.log
 
       - name: Keep the APK as a build artifact
         uses: actions/upload-artifact@v4
@@ -80,4 +81,26 @@ jobs:
             --latest
 
       - name: Planner unit tests
-        run: ./gradlew --no-daemon testDebugUnitTest
+        shell: bash
+        run: ./gradlew --no-daemon testDebugUnitTest 2>&1 | tee -a build.log
+
+      # On failure, list the errors on the run page and save the full log to the
+      # build-logs branch so it can be read and fixed.
+      - name: Share the build log
+        if: failure()
+        shell: bash
+        run: |
+          [ -f build.log ] || echo "no log" > build.log
+          grep -E "^e: |error:|What went wrong|Could not (find|resolve)|AAPT|FAILED" build.log | head -40 | while IFS= read -r line; do
+            echo "::error::${line//$'\r'/}"
+          done
+          cp build.log "$RUNNER_TEMP/build.log"
+          git config user.name "borealis-build"
+          git config user.email "borealis-build@users.noreply.github.com"
+          git checkout --orphan build-logs
+          git rm -rq --cached .
+          mkdir -p logs
+          cp "$RUNNER_TEMP/build.log" "logs/run-${{ github.run_number }}.log"
+          git add logs
+          git commit -qm "Build log for run ${{ github.run_number }}"
+          git push -f origin build-logs
