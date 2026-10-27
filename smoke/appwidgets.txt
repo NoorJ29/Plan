@@ -2,5 +2,3 @@
     provider=ProviderId{user:0, app:10192, cmp:ComponentInfo{com.borealis.planner/com.borealis.planner.widget.TodayWidgetReceiver}}
   [1] id=3
     provider=ProviderId{user:0, app:10192, cmp:ComponentInfo{com.borealis.planner/com.borealis.planner.widget.OrbWidgetReceiver}}
-  [2] id=4
-    provider=ProviderId{user:0, app:10192, cmp:ComponentInfo{com.borealis.planner/com.borealis.planner.widget.NextUpWidgetReceiver}}
