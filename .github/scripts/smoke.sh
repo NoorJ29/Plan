@@ -8,8 +8,16 @@ mkdir -p shots
 shot() { sleep "${2:-2}"; adb exec-out screencap -p > "shots/$1.png"; echo "shot $1"; }
 
 find_node() {  # prints "x y" centre of first node whose text or content-desc matches $1
-  adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
-  adb pull /sdcard/ui.xml ui.xml >/dev/null 2>&1
+  for attempt in 1 2 3; do
+    adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+    adb pull /sdcard/ui.xml ui.xml >/dev/null 2>&1
+    if find_in_dump "$1"; then return 0; fi
+    sleep 2
+  done
+  return 1
+}
+
+find_in_dump() {
   python3 - "$1" <<'PY'
 import re, sys
 t = sys.argv[1]
@@ -43,7 +51,7 @@ add_task() {  # $1 text typed with %s for spaces
   adb shell am start -a com.borealis.planner.action.ADD -n $PKG/.MainActivity >/dev/null
   sleep 3
   adb shell input text "$1"
-  sleep 1
+  sleep 4
 }
 
 adb install -r Borealis.apk
@@ -57,9 +65,8 @@ shot 02-editor-quick-parse 1
 adb shell input keyevent 66
 sleep 2
 for t in "Gym%s6pm%s!!" "Call%smum%sat%s7" "Read%s20%spages" "Water%splants%s9:30" "Book%sflights%stomorrow%s10am"; do
-  add_task "$t"; adb shell input keyevent 66; sleep 2
+  add_task "$t"; adb shell input keyevent 66; sleep 3
 done
-adb shell input keyevent 4 || true
 shot 03-plan-with-tasks 3
 
 swipe_text "Water plants" 700
@@ -89,7 +96,7 @@ adb shell input keyevent 3
 shot 11-home-widget 4
 
 adb shell am start -n $PKG/.MainActivity >/dev/null
-sleep 2
+sleep 5
 tap_text "Settings"
 shot 12-settings 3
 tap_text "Test"
