@@ -15,11 +15,13 @@ object QuickParse {
         val found: Boolean get() = dayOffset != null || time != null || priority != null
     }
 
+    // Note: Android's regex engine (ICU) reads "[:" as the start of a POSIX class,
+    // so character sets here never begin with a colon.
     private val dayWords = Regex("""(?i)(?<![\p{L}\d])(today|tonight|tomorrow|tmrw|tmr|tmw)(?![\p{L}\d])""")
-    private val time12 = Regex("""(?i)(?<![\p{L}\d:])(?:at\s+)?(1[0-2]|0?[1-9])(?:[:.]([0-5]\d))?\s*(am|pm|a\.m\.|p\.m\.)(?![\p{L}\d])""")
-    private val time24 = Regex("""(?i)(?<![\p{L}\d:])(?:at\s+)?([01]?\d|2[0-3])[:.]([0-5]\d)(?![\p{L}\d:])""")
+    private val time12 = Regex("""(?i)(?<![\p{L}\d\:])(?:at\s+)?(1[0-2]|0?[1-9])(?:[.\:]([0-5]\d))?\s*(am|pm|a\.m\.|p\.m\.)(?![\p{L}\d])""")
+    private val time24 = Regex("""(?i)(?<![\p{L}\d\:])(?:at\s+)?([01]?\d|2[0-3])[.\:]([0-5]\d)(?![\p{L}\d\:])""")
     private val timeWords = Regex("""(?i)(?<![\p{L}\d])(?:at\s+)?(noon|midday|midnight)(?![\p{L}\d])""")
-    private val atHour = Regex("""(?i)(?<![\p{L}\d])at\s+(1[0-2]|[1-9])(?![\p{L}\d:.])""")
+    private val atHour = Regex("""(?i)(?<![\p{L}\d])at\s+(1[0-2]|[1-9])(?![\p{L}\d\:.])""")
     private val bangs = Regex("""(?<=^|\s)(!{1,3})(?=\s|$)""")
 
     fun parse(input: String): Result {

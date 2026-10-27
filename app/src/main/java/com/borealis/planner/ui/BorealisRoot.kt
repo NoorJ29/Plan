@@ -191,7 +191,7 @@ private fun GlassNavBar(selected: Tab, onSelect: (Tab) -> Unit, modifier: Modifi
             .padding(horizontal = 18.dp, vertical = 12.dp)
             .fillMaxWidth()
             .height(68.dp)
-            .glass(RoundedCornerShape(26.dp), veil = 0.7f, fillAlpha = 0.07f, strokeAlpha = 0.18f)
+            .glass(RoundedCornerShape(26.dp), veil = 0.9f, fillAlpha = 0.07f, strokeAlpha = 0.18f)
             .padding(6.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
