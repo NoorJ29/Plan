@@ -136,8 +136,8 @@ fun ConfirmRepeatDelete(onJustThis: () -> Unit, onWhole: () -> Unit, onDismiss: 
 data class ToastData(
     val message: String,
     val actionLabel: String? = null,
-    val action: (() -> Unit)? = null,
     val id: Long = System.nanoTime(),
+    val action: (() -> Unit)? = null,
 )
 
 @Composable
