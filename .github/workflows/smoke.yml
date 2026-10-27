@@ -1,0 +1,60 @@
+name: Smoke test on emulator
+
+on:
+  workflow_run:
+    workflows: ["Build Borealis APK"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  smoke:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Download the latest APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download --repo "${{ github.repository }}" --pattern Borealis.apk --dir .
+
+      - name: Walk through the app on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash .github/scripts/smoke.sh
+
+      - name: Save screenshots
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/shots"
+          cp -r shots/. "$RUNNER_TEMP/shots/" 2>/dev/null || true
+          git config user.name "borealis-build"
+          git config user.email "borealis-build@users.noreply.github.com"
+          git fetch -q origin build-logs || true
+          if git rev-parse -q --verify origin/build-logs >/dev/null; then
+            git checkout -q -B build-logs origin/build-logs
+          else
+            git checkout -q --orphan build-logs && git rm -rq --cached .
+          fi
+          rm -rf smoke && mkdir -p smoke
+          cp -r "$RUNNER_TEMP/shots/." smoke/
+          git add smoke
+          git commit -qm "Smoke test run ${{ github.run_number }}" || true
+          git push -q origin build-logs

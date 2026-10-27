@@ -131,6 +131,7 @@ fun TaskEditorSheet(
     var allUpcoming by remember(target) { mutableStateOf(false) }
     var picker by remember { mutableStateOf<Picker?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var saveRequested by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val use24 = DateFormat.is24HourFormat(context)
@@ -197,6 +198,13 @@ fun TaskEditorSheet(
         close()
     }
 
+    LaunchedEffect(saveRequested) {
+        if (saveRequested) {
+            saveRequested = false
+            save()
+        }
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -250,7 +258,16 @@ fun TaskEditorSheet(
             val titleStyle = TextStyle(fontFamily = Onest, fontWeight = FontWeight.SemiBold, fontSize = 24.sp, lineHeight = 30.sp, color = Aurora.Frost)
             BasicTextField(
                 value = title,
-                onValueChange = { title = it },
+                onValueChange = { v ->
+                    // Enter on the keyboard saves instead of adding a new line.
+                    if ('\n' in v) {
+                        title = v.replace("\n", " ").trim()
+                        saveRequested = true
+                    } else {
+                        title = v
+                    }
+                },
+                maxLines = 4,
                 textStyle = titleStyle,
                 cursorBrush = SolidColor(Aurora.Borealis),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
