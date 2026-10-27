@@ -1,0 +1,83 @@
+name: Build Borealis APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-apk
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # A signing key kept in this repo's private Actions cache, so every build is signed
+      # the same way and new versions install over old ones without losing your tasks.
+      # (If BOREALIS_KEYSTORE_B64 / BOREALIS_KEYSTORE_PASSWORD secrets are added, they win.)
+      - name: Restore signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.borealis-signing
+          key: borealis-signing-v1
+
+      - name: Prepare signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.BOREALIS_KEYSTORE_B64 }}
+          KEYSTORE_PW: ${{ secrets.BOREALIS_KEYSTORE_PASSWORD }}
+        run: |
+          dir="$HOME/.borealis-signing"
+          mkdir -p "$dir"
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/borealis.jks"
+            echo "::add-mask::$KEYSTORE_PW"
+            echo "BOREALIS_KEYSTORE=$RUNNER_TEMP/borealis.jks" >> "$GITHUB_ENV"
+            echo "BOREALIS_KEYSTORE_PASSWORD=$KEYSTORE_PW" >> "$GITHUB_ENV"
+          else
+            if [ ! -f "$dir/borealis.jks" ]; then
+              pw=$(openssl rand -hex 24)
+              keytool -genkeypair -keystore "$dir/borealis.jks" -alias borealis -keyalg RSA -keysize 2048 \
+                -validity 10000 -storepass "$pw" -keypass "$pw" -dname "CN=Borealis Planner, O=Personal" >/dev/null
+              printf '%s' "$pw" > "$dir/pw"
+            fi
+            pw=$(cat "$dir/pw")
+            echo "::add-mask::$pw"
+            echo "BOREALIS_KEYSTORE=$dir/borealis.jks" >> "$GITHUB_ENV"
+            echo "BOREALIS_KEYSTORE_PASSWORD=$pw" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build signed APK
+        run: ./gradlew --no-daemon --stacktrace assembleRelease
+
+      - name: Keep the APK as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Borealis-apk
+          path: app/build/outputs/apk/release/app-release.apk
+
+      - name: Publish the APK as a release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk Borealis.apk
+          gh release create "v1.0.${{ github.run_number }}" Borealis.apk \
+            --title "Borealis 1.0 (build ${{ github.run_number }})" \
+            --notes "Open this page on your phone, tap Borealis.apk to download, then open it to install." \
+            --latest
+
+      - name: Planner unit tests
+        run: ./gradlew --no-daemon testDebugUnitTest

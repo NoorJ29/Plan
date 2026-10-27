@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Borealis</string>
+    <string name="widget_today_name">Today checklist</string>
+    <string name="widget_today_desc">Tick off today\'s or tomorrow\'s tasks right from the home screen.</string>
+    <string name="widget_orb_name">Progress orb</string>
+    <string name="widget_orb_desc">How much of today is left, at a glance.</string>
+    <string name="widget_next_name">Next up</string>
+    <string name="widget_next_desc">Your next task. Slim enough for the lock screen.</string>
+    <string name="channel_alarms">Task alarms</string>
+    <string name="channel_alarms_desc">Rings until you respond, like a clock alarm.</string>
+    <string name="channel_reminders">Task reminders</string>
+    <string name="channel_reminders_desc">A single heads-up when a task is due.</string>
+    <string name="channel_today">Today on lock screen</string>
+    <string name="channel_today_desc">A quiet card showing what\'s left today.</string>
+</resources>
