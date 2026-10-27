@@ -115,12 +115,17 @@ for name in "Add Progress orb" "Add Next up"; do
 done
 adb shell input keyevent 3
 sleep 2
+adb shell input keyevent 3
+sleep 2
+shot 11a-home-page0 1
 adb shell input swipe 950 1300 120 1300 300
 shot 11-home-widget 5
 tap_text "Tomorrow"
 shot 11b-widget-tomorrow 4
 tap_text "Today"
 sleep 2
+adb shell input swipe 950 1300 120 1300 300
+shot 11c-home-next-page 4
 adb shell dumpsys appwidget | grep -E "provider=|id=" | head -20 > shots/appwidgets.txt || true
 
 adb shell am start -n $PKG/.MainActivity >/dev/null
