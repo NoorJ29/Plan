@@ -237,7 +237,16 @@ private fun Section(title: String) {
 private fun ThemeSwatch(theme: WidgetTheme, selected: Boolean, onClick: () -> Unit) {
     val p = WidgetPalettes.of(theme)
     val haptics = rememberHaptics()
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .clickable {
+                haptics.tick()
+                onClick()
+            }
+            .padding(4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
         Box(
             Modifier
                 .size(54.dp)
@@ -245,11 +254,7 @@ private fun ThemeSwatch(theme: WidgetTheme, selected: Boolean, onClick: () -> Un
                 .border(if (selected) 2.dp else 1.dp, if (selected) Color(p.accent) else Color.White.copy(alpha = 0.15f), CircleShape)
                 .padding(if (selected) 5.dp else 0.dp)
                 .clip(CircleShape)
-                .background(Brush.linearGradient(listOf(Color(p.glowA), Color(p.glowB), Color(p.glowC))))
-                .clickable {
-                    haptics.tick()
-                    onClick()
-                },
+                .background(Brush.linearGradient(listOf(Color(p.glowA), Color(p.glowB), Color(p.glowC)))),
         )
         Spacer(Modifier.height(6.dp))
         Text(theme.label, style = MaterialTheme.typography.labelMedium, color = if (selected) Aurora.Frost else Aurora.Mist)
@@ -277,7 +282,7 @@ private fun TodayPreview(style: WidgetStyle, tasks: List<Task>, progress: Planne
     val p = WidgetPalettes.of(style.theme)
     val context = LocalContext.current
     val use24 = DateFormat.is24HourFormat(context)
-    val shown = if (style.showDone) tasks.take(4) else tasks.filter { !it.done }.take(4)
+    val shown = if (style.showDone) tasks.take(3) else tasks.filter { !it.done }.take(3)
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         WidgetCanvas(style, progress.fraction, maxWidth, 230.dp) {
             Column(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 12.dp)) {

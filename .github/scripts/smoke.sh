@@ -47,11 +47,17 @@ swipe_text() {  # swipe a card horizontally: $1 text, $2 dx
   else echo "NOT FOUND for swipe"; fi
 }
 
-add_task() {  # $1 text typed with %s for spaces
+add_task() {  # $1 plain text; typed word by word like a person would
   adb shell am start -a com.borealis.planner.action.ADD -n $PKG/.MainActivity >/dev/null
   sleep 3
-  adb shell input text "$1"
-  sleep 4
+  local first=1
+  for w in $1; do
+    [ "$first" = 1 ] || adb shell input keyevent 62
+    adb shell input text "$w"
+    first=0
+    sleep 0.7
+  done
+  sleep 1
 }
 
 adb install -r Borealis.apk
@@ -60,11 +66,11 @@ adb logcat -c
 adb shell am start -W -n $PKG/.MainActivity
 shot 01-first-launch 7
 
-add_task "Send%sthe%sproposal%s11am%s!!!"
+add_task "Send the proposal 11am !!!"
 shot 02-editor-quick-parse 1
 adb shell input keyevent 66
-sleep 2
-for t in "Gym%s6pm%s!!" "Call%smum%sat%s7" "Read%s20%spages" "Water%splants%s9:30" "Book%sflights%stomorrow%s10am"; do
+sleep 3
+for t in "Gym 6pm !!" "Call mum at 7" "Read 20 pages" "Water plants 9:30" "Book flights tomorrow 10am"; do
   add_task "$t"; adb shell input keyevent 66; sleep 3
 done
 shot 03-plan-with-tasks 3
@@ -87,11 +93,14 @@ tap_text "Nebula"
 shot 09-theme-nebula 2
 tap_text "Aurora"
 sleep 1
+adb shell input swipe 540 1900 540 600 400
+sleep 1
+adb shell input swipe 540 1900 540 600 400
+sleep 1
 tap_text "Add Today checklist"
 shot 10-pin-dialog 3
-tap_text "Add to home screen" || true
-tap_text "Add" || true
-sleep 2
+tap_text "Add to home screen"
+sleep 3
 adb shell input keyevent 3
 shot 11-home-widget 4
 

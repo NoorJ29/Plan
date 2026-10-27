@@ -169,9 +169,17 @@ private fun WeekCard(
             .glass(RoundedCornerShape(28.dp), tint = Aurora.Glacier, veil = 0.45f)
             .padding(22.dp),
     ) {
-        Row(verticalAlignment = Alignment.Bottom) {
+        if (planned == 0) {
+            Text("No history yet", style = MaterialTheme.typography.headlineSmall, color = Aurora.Frost)
+            Spacer(Modifier.height(4.dp))
             Text(
-                if (planned == 0) "—" else "$pct%",
+                "Each finished day adds a bar here: green for done, amber for what slipped.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Aurora.Mist,
+            )
+        } else Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                "$pct%",
                 style = TextStyle(
                     fontFamily = Unbounded,
                     fontWeight = FontWeight.SemiBold,

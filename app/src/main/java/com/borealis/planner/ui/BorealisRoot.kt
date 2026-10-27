@@ -160,6 +160,13 @@ fun BorealisRoot(store: PlannerStore, addRequest: MutableState<Long?>) {
                 }
             }
 
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(bottomInset + 120.dp)
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Aurora.Night.copy(alpha = 0.92f)))),
+            )
             ToastHost(
                 toast,
                 onDismiss = { toast = null },

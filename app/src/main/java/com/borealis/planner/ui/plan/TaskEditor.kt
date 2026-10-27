@@ -50,10 +50,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -114,7 +116,10 @@ fun TaskEditorSheet(
         existing?.let { PlannerLogic.draftOf(it, series) } ?: TaskDraft(title = "", day = baseDay)
     }
 
-    var title by remember(target) { mutableStateOf(initial.title) }
+    var titleField by remember(target) {
+        mutableStateOf(TextFieldValue(initial.title, TextRange(initial.title.length)))
+    }
+    val title = titleField.text
     var notes by remember(target) { mutableStateOf(initial.notes) }
     var dayOverride by remember(target) { mutableStateOf(if (isNew) null else initial.day) }
     var timeSet by remember(target) { mutableStateOf(!isNew) }
@@ -257,14 +262,15 @@ fun TaskEditorSheet(
 
             val titleStyle = TextStyle(fontFamily = Onest, fontWeight = FontWeight.SemiBold, fontSize = 24.sp, lineHeight = 30.sp, color = Aurora.Frost)
             BasicTextField(
-                value = title,
+                value = titleField,
                 onValueChange = { v ->
                     // Enter on the keyboard saves instead of adding a new line.
-                    if ('\n' in v) {
-                        title = v.replace("\n", " ").trim()
+                    if ('\n' in v.text) {
+                        val t = v.text.replace("\n", " ").trim()
+                        titleField = TextFieldValue(t, TextRange(t.length))
                         saveRequested = true
                     } else {
-                        title = v
+                        titleField = v
                     }
                 },
                 maxLines = 4,
