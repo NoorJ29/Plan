@@ -240,7 +240,7 @@ fun SettingsScreen(
         }
 
         Group("About") {
-            SettingRow("Borealis 1.0", "A day planner for today, tomorrow and everything that slipped.", icon = R.drawable.ic_sparkle, iconTint = Aurora.Borealis)
+            SettingRow("Borealis", "A day planner for today, tomorrow and everything that slipped.", icon = R.drawable.ic_sparkle, iconTint = Aurora.Borealis)
             Divider()
             SettingRow(
                 "Fonts",

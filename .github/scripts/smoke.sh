@@ -166,10 +166,7 @@ tap_text "Today"
 sleep 2
 tap_text "All"
 shot 11c-widget-category 4
-tap_text "Uni"
-sleep 2
-tap_text "BIO101"
-sleep 2
+for c in Uni Home Money; do tap_text "$c"; sleep 2; done   # cycles back to All
 adb shell dumpsys appwidget | grep -E "provider=|id=" | head -20 > shots/appwidgets.txt || true
 
 adb shell am start -n $PKG/.MainActivity >/dev/null
