@@ -53,6 +53,8 @@ data class Task(
     val slips: List<Long> = emptyList(),
     val snoozeUntil: Long? = null,
     val createdAt: Long = System.currentTimeMillis(),
+    /** A [Category] id: either a top-level category or a subcategory. Null = uncategorised. */
+    val categoryId: String? = null,
 ) {
     val isRecurring: Boolean get() = seriesId != null
     val subtasksDone: Int get() = subtasks.count { it.done }
@@ -75,7 +77,29 @@ data class Series(
     val startDay: Long,
     val endDay: Long? = null,
     val skipDays: Set<Long> = emptySet(),
+    val categoryId: String? = null,
 )
+
+/**
+ * A folder for tasks, e.g. "Uni". When [parentId] is set it is a subcategory inside that
+ * category, e.g. "Uni › BIO101". Subcategories show their parent's colour.
+ */
+data class Category(
+    val id: String = newId(),
+    val name: String,
+    val color: Int = 0,
+    val parentId: String? = null,
+    val order: Int = 0,
+)
+
+object CategoryPalette {
+    val colors: LongArray = longArrayOf(
+        0xFF46F5B0, 0xFF3FD8FF, 0xFFA08BFF, 0xFFFFB65C,
+        0xFFFF5E8E, 0xFFFFE066, 0xFF6FA8FF, 0xFFB8F26B,
+    )
+    val names = listOf("Aurora", "Glacier", "Ion", "Ember", "Flare", "Sun", "Sky", "Lime")
+    fun argb(index: Int): Int = colors[Math.floorMod(index, colors.size)].toInt()
+}
 
 enum class WidgetTheme(val label: String) {
     AURORA("Aurora"),
@@ -99,6 +123,8 @@ data class Settings(
     val haptics: Boolean = true,
     val calmSky: Boolean = false,
     val widget: WidgetStyle = WidgetStyle(),
+    /** Plan screen: group tasks under their categories (true) or one list by time (false). */
+    val groupByCategory: Boolean = true,
 )
 
 data class PlannerState(
@@ -109,6 +135,11 @@ data class PlannerState(
     val lastRollover: Long = 0,
     /** App-widget ids of Today widgets currently flipped to tomorrow. */
     val widgetTomorrow: Set<Int> = emptySet(),
+    val categories: List<Category> = emptyList(),
+    /** App-widget id -> top-level category id the widget is filtered to. */
+    val widgetCategory: Map<Int, String> = emptyMap(),
+    /** Category ids folded shut on the Plan screen. */
+    val collapsed: Set<String> = emptySet(),
 )
 
 /** Everything the editor collects; turned into a [Task] and maybe a [Series]. */
@@ -123,6 +154,7 @@ data class TaskDraft(
     val subtasks: List<Subtask> = emptyList(),
     val repeat: Repeat = Repeat.NONE,
     val weekdays: Set<Int> = emptySet(),
+    val categoryId: String? = null,
 )
 
 fun newId(): String = UUID.randomUUID().toString()

@@ -54,7 +54,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.borealis.planner.MainActivity
 import com.borealis.planner.R
+import com.borealis.planner.update.Updater
+import com.borealis.planner.ui.settings.rememberUpdateController
+import com.borealis.planner.ui.settings.UpdateSheet
+import com.borealis.planner.ui.settings.UpdateBanner
+import com.borealis.planner.ui.plan.CategoryManagerSheet
 import com.borealis.planner.data.Day
 import com.borealis.planner.data.PlannerLogic
 import com.borealis.planner.data.PlannerStore
@@ -89,6 +95,8 @@ fun BorealisRoot(store: PlannerStore, addRequest: MutableState<Long?>) {
     var day by rememberSaveable { mutableLongStateOf(today) }
     var seenToday by rememberSaveable { mutableLongStateOf(today) }
     var editor by remember { mutableStateOf<EditorTarget?>(null) }
+    var managingCategories by remember { mutableStateOf(false) }
+    val updates = rememberUpdateController(store)
     var toast by remember { mutableStateOf<ToastData?>(null) }
     val showToast: (ToastData) -> Unit = { toast = it }
 
@@ -102,12 +110,13 @@ fun BorealisRoot(store: PlannerStore, addRequest: MutableState<Long?>) {
         if (requested != null) {
             tab = Tab.PLAN
             day = requested
-            editor = EditorTarget.New(requested)
+            editor = EditorTarget.New(requested, MainActivity.pendingCategory.also { MainActivity.pendingCategory = null })
             addRequest.value = null
         }
     }
 
     val context = LocalContext.current
+    LaunchedEffect(Unit) { if (Updater.shouldAutoCheck(context)) updates.check(auto = true) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= 33 &&
@@ -140,8 +149,10 @@ fun BorealisRoot(store: PlannerStore, addRequest: MutableState<Long?>) {
                         today = today,
                         day = day,
                         onSelectDay = { day = it },
-                        onAdd = { editor = EditorTarget.New(day) },
+                        onAdd = { cat -> editor = EditorTarget.New(day, cat) },
                         onEdit = { editor = EditorTarget.Existing(it) },
+                        onManageCategories = { managingCategories = true },
+                        topBanner = { UpdateBanner(updates, Modifier.padding(bottom = 14.dp)) },
                         store = store,
                         showToast = showToast,
                     )
@@ -156,7 +167,13 @@ fun BorealisRoot(store: PlannerStore, addRequest: MutableState<Long?>) {
                         showToast = showToast,
                     )
                     Tab.WIDGETS -> StudioScreen(state = state, today = today, store = store, showToast = showToast)
-                    Tab.SETTINGS -> SettingsScreen(state = state, store = store, showToast = showToast)
+                    Tab.SETTINGS -> SettingsScreen(
+                        state = state,
+                        store = store,
+                        showToast = showToast,
+                        updates = updates,
+                        onManageCategories = { managingCategories = true },
+                    )
                 }
             }
 
@@ -176,6 +193,11 @@ fun BorealisRoot(store: PlannerStore, addRequest: MutableState<Long?>) {
             )
             GlassNavBar(tab, onSelect = { tab = it }, modifier = Modifier.align(Alignment.BottomCenter))
         }
+
+        if (managingCategories) {
+            CategoryManagerSheet(state, store) { managingCategories = false }
+        }
+        UpdateSheet(updates, store)
 
         editor?.let { target ->
             TaskEditorSheet(

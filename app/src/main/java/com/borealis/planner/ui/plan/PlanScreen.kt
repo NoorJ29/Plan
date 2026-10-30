@@ -64,6 +64,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.borealis.planner.R
+import com.borealis.planner.ui.components.GlassChip
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import com.borealis.planner.data.Day
 import com.borealis.planner.data.PlannerLogic
 import com.borealis.planner.data.PlannerState
@@ -93,17 +97,26 @@ fun PlanScreen(
     today: Long,
     day: Long,
     onSelectDay: (Long) -> Unit,
-    onAdd: () -> Unit,
+    onAdd: (String?) -> Unit,
     onEdit: (String) -> Unit,
+    onManageCategories: () -> Unit,
     store: PlannerStore,
     showToast: (ToastData) -> Unit,
+    topBanner: (@Composable () -> Unit)? = null,
 ) {
     LaunchedEffect(day) { store.ensureDay(day) }
-    val open = remember(state, day) { PlannerLogic.openOn(state, day) }
-    val done = remember(state, day) { PlannerLogic.doneOn(state, day) }
-    val missed = remember(state, day, today) { if (day == today) PlannerLogic.missed(state, today) else emptyList() }
+    val tops = remember(state.categories) { PlannerLogic.topCategories(state) }
+    var filterCat by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(tops) { if (filterCat != null && tops.none { it.id == filterCat }) filterCat = null }
+    val passes: (Task) -> Boolean = { t -> filterCat == null || PlannerLogic.inCategory(state, t, filterCat!!) }
+    val open = remember(state, day, filterCat) { PlannerLogic.openOn(state, day).filter(passes) }
+    val done = remember(state, day, filterCat) { PlannerLogic.doneOn(state, day).filter(passes) }
+    val missed = remember(state, day, today, filterCat) { if (day == today) PlannerLogic.missed(state, today).filter(passes) else emptyList() }
     val dayTasks = remember(state, day) { PlannerLogic.dayTasks(state, day) }
     val progress = PlannerLogic.progress(state, day)
+    val grouped = state.settings.groupByCategory && state.categories.isNotEmpty()
+    val labelOf: (Task) -> String? = { t -> PlannerLogic.pathLabel(state, t.categoryId) }
+    val tintOf: (Task) -> Color? = { t -> categoryColor(state, t.categoryId) }
 
     var showDone by rememberSaveable { mutableStateOf(true) }
     var expandedId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -150,11 +163,24 @@ fun PlanScreen(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = top + 16.dp, bottom = bottom + 180.dp),
         ) {
+            if (topBanner != null && day == today) {
+                item(key = "banner") { topBanner() }
+            }
             item(key = "header") {
                 PlanHeader(state, today, day, progress, dayTasks, missed.size, now, use24)
             }
             item(key = "switcher") {
                 DaySwitcher(today, day, onSelectDay, Modifier.padding(top = 20.dp, bottom = 4.dp))
+            }
+            item(key = "categories") {
+                CategoryBar(
+                    state = state,
+                    day = day,
+                    selected = filterCat,
+                    onPick = { filterCat = it },
+                    onManage = onManageCategories,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
             }
             if (missed.isNotEmpty()) {
                 item(key = "missed-header") {
@@ -177,11 +203,28 @@ fun PlanScreen(
                         onExpand = { expandedId = if (expandedId == t.id) null else t.id },
                         cb = cb,
                         modifier = Modifier.animateItem(),
+                        category = labelOf(t),
+                        categoryTint = tintOf(t),
                     )
                 }
             }
             if (open.isEmpty() && done.isEmpty() && missed.isEmpty()) {
-                item(key = "empty") { EmptyDay(day, today, onAdd) }
+                if (filterCat != null) {
+                    item(key = "empty-filter") {
+                        val name = PlannerLogic.category(state, filterCat)?.name ?: ""
+                        Column(Modifier.padding(top = 16.dp).fillMaxWidth().glass(RoundedCornerShape(22.dp), veil = 0.4f).padding(20.dp)) {
+                            Text("Nothing in $name for ${Day.label(day, today).lowercase()}", style = MaterialTheme.typography.titleMedium, color = Aurora.Frost)
+                            Spacer(Modifier.height(12.dp))
+                            Row {
+                                PillButton("Add to $name", { onAdd(filterCat) }, icon = R.drawable.ic_add, tone = Tone.Accent)
+                                Spacer(Modifier.width(8.dp))
+                                PillButton("Show all", { filterCat = null })
+                            }
+                        }
+                    }
+                } else {
+                    item(key = "empty") { EmptyDay(day, today) { onAdd(null) } }
+                }
             }
             if (open.isNotEmpty()) {
                 item(key = "open-header") {
@@ -193,16 +236,74 @@ fun PlanScreen(
                         },
                         count = open.size,
                         color = Aurora.Glacier,
-                    )
+                    ) {
+                        if (state.categories.isNotEmpty()) {
+                            Text(
+                                if (grouped) "By time" else "By category",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = Aurora.Mist,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { store.settings { it.copy(groupByCategory = !it.groupByCategory) } }
+                                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                            )
+                        }
+                    }
                 }
-                items(open, key = { it.id }) { t ->
-                    TaskCard(
-                        t, CardMode.Open, today, use24, now,
-                        expanded = expandedId == t.id,
-                        onExpand = { expandedId = if (expandedId == t.id) null else t.id },
-                        cb = cb,
-                        modifier = Modifier.animateItem(),
-                    )
+                if (grouped) {
+                    val groups = PlannerLogic.groupByCategory(state, open)
+                    val dayInGroup: (String?) -> List<Task> = { gid ->
+                        dayTasks.filter { t -> if (gid == null) PlannerLogic.category(state, t.categoryId) == null else PlannerLogic.inCategory(state, t, gid) }
+                    }
+                    for (g in groups) {
+                        val key = g.category?.id ?: "none"
+                        val color = g.category?.let { categoryColor(it.color) } ?: Aurora.Mist
+                        val isCollapsed = key in state.collapsed
+                        item(key = "g-$key") {
+                            val all = dayInGroup(g.category?.id)
+                            CategoryHeader(
+                                name = g.category?.name ?: "No category",
+                                color = color,
+                                open = g.tasks.size,
+                                done = all.count { it.done },
+                                total = all.size,
+                                collapsed = isCollapsed,
+                                onToggle = { store.toggleCollapsed(key) },
+                                onAdd = { onAdd(g.category?.id) },
+                                modifier = Modifier.animateItem(),
+                            )
+                        }
+                        if (!isCollapsed) {
+                            for (sg in g.subs) {
+                                val sub = sg.sub
+                                if (sub != null) {
+                                    item(key = "s-${sub.id}") { SubHeader(sub.name, color, sg.tasks.size, Modifier.animateItem()) }
+                                }
+                                items(sg.tasks, key = { it.id }) { t ->
+                                    TaskCard(
+                                        t, CardMode.Open, today, use24, now,
+                                        expanded = expandedId == t.id,
+                                        onExpand = { expandedId = if (expandedId == t.id) null else t.id },
+                                        cb = cb,
+                                        modifier = Modifier.animateItem(),
+                                        indent = if (sub != null) 14.dp else 0.dp,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    items(open, key = { it.id }) { t ->
+                        TaskCard(
+                            t, CardMode.Open, today, use24, now,
+                            expanded = expandedId == t.id,
+                            onExpand = { expandedId = if (expandedId == t.id) null else t.id },
+                            cb = cb,
+                            modifier = Modifier.animateItem(),
+                            category = labelOf(t),
+                            categoryTint = tintOf(t),
+                        )
+                    }
                 }
             }
             if (done.isNotEmpty()) {
@@ -227,13 +328,15 @@ fun PlanScreen(
                             onExpand = { expandedId = if (expandedId == t.id) null else t.id },
                             cb = cb,
                             modifier = Modifier.animateItem(),
+                            category = labelOf(t),
+                            categoryTint = tintOf(t),
                         )
                     }
                 }
             }
         }
 
-        AddOrb(onAdd, Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = bottom + 92.dp))
+        AddOrb({ onAdd(filterCat) }, Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = bottom + 92.dp))
         Celebration(celebrate, Modifier.fillMaxSize())
     }
 
@@ -251,6 +354,101 @@ fun PlanScreen(
             },
             onDismiss = { confirmDelete = null },
         )
+    }
+}
+
+// ================================================================== categories
+
+/** Filter chips: All, then each category with today's open count, then a button to manage them. */
+@Composable
+private fun CategoryBar(
+    state: PlannerState,
+    day: Long,
+    selected: String?,
+    onPick: (String?) -> Unit,
+    onManage: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val tops = PlannerLogic.topCategories(state)
+    Row(
+        modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (tops.isEmpty()) {
+            GlassChip("Add categories", false, onManage, icon = R.drawable.ic_folder, accent = Aurora.Borealis)
+            Text("e.g. Uni › BIO101, Work, Home", style = MaterialTheme.typography.bodySmall, color = Aurora.Haze)
+            return@Row
+        }
+        GlassChip("All", selected == null, { onPick(null) })
+        val dayOpen = state.tasks.filter { it.day == day && it.isOpen }
+        tops.forEach { c ->
+            val n = dayOpen.count { PlannerLogic.inCategory(state, it, c.id) }
+            GlassChip(if (n > 0) "${c.name} · $n" else c.name, selected == c.id, { onPick(if (selected == c.id) null else c.id) }, icon = R.drawable.ic_folder, accent = categoryColor(c.color))
+        }
+        GlassChip("Edit", false, onManage, icon = R.drawable.ic_edit)
+    }
+}
+
+@Composable
+private fun CategoryHeader(
+    name: String,
+    color: Color,
+    open: Int,
+    done: Int,
+    total: Int,
+    collapsed: Boolean,
+    onToggle: () -> Unit,
+    onAdd: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val haptics = rememberHaptics()
+    Row(
+        modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp, bottom = 4.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .clickable { haptics.tick(); onToggle() }
+            .padding(start = 6.dp, end = 0.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(12.dp).clip(CircleShape).background(color))
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(name, style = MaterialTheme.typography.titleMedium, color = Aurora.Frost, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (open == 1) "1 left" else "$open left", style = Readout, color = color)
+                if (total > 0) {
+                    Spacer(Modifier.width(8.dp))
+                    Box(Modifier.width(56.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color.White.copy(alpha = 0.08f))) {
+                        Box(Modifier.fillMaxHeight().fillMaxWidth(done / total.toFloat()).clip(RoundedCornerShape(2.dp)).background(color))
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Text("$done/$total done", style = Readout, color = Aurora.Haze)
+                }
+            }
+        }
+        Box(
+            Modifier.size(40.dp).clip(CircleShape).clickable { haptics.tick(); onAdd() },
+            contentAlignment = Alignment.Center,
+        ) { Icon(painterResource(R.drawable.ic_add), "Add a task to $name", tint = Aurora.Mist, modifier = Modifier.size(18.dp)) }
+        Icon(
+            painterResource(if (collapsed) R.drawable.ic_chevron_right else R.drawable.ic_chevron_down),
+            if (collapsed) "Show $name" else "Fold $name",
+            tint = Aurora.Haze,
+            modifier = Modifier.padding(end = 8.dp).size(18.dp),
+        )
+    }
+}
+
+@Composable
+private fun SubHeader(name: String, color: Color, count: Int, modifier: Modifier = Modifier) {
+    Row(modifier.padding(start = 18.dp, top = 6.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(painterResource(R.drawable.ic_subtask), null, tint = color.copy(alpha = 0.85f), modifier = Modifier.size(15.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(name, style = MaterialTheme.typography.labelLarge, color = Aurora.Mist, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.width(8.dp))
+        Text("$count", style = Readout, color = color.copy(alpha = 0.8f))
     }
 }
 

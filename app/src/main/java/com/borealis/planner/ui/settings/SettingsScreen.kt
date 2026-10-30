@@ -38,6 +38,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.borealis.planner.R
+import com.borealis.planner.update.Updater
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.mutableStateOf
 import com.borealis.planner.alarm.AlarmScheduler
 import com.borealis.planner.alarm.Notifications
 import com.borealis.planner.data.PlannerState
@@ -53,8 +56,20 @@ import com.borealis.planner.ui.components.glass
 import com.borealis.planner.ui.theme.Aurora
 
 @Composable
-fun SettingsScreen(state: PlannerState, store: PlannerStore, showToast: (ToastData) -> Unit) {
+fun SettingsScreen(
+    state: PlannerState,
+    store: PlannerStore,
+    showToast: (ToastData) -> Unit,
+    updates: UpdateController,
+    onManageCategories: () -> Unit,
+) {
     val context = LocalContext.current
+    var pendingRestore by remember { mutableStateOf<String?>(null) }
+    val backup = rememberBackupLauncher(store) { ok -> showToast(ToastData(if (ok) "Backup saved" else "Couldn't save the backup")) }
+    val restore = rememberRestoreLauncher { text ->
+        if (text == null || !text.trimStart().startsWith("{") || !text.contains("\"tasks\"")) showToast(ToastData("That file isn't a Borealis backup."))
+        else pendingRestore = text
+    }
     var resumes by remember { mutableIntStateOf(0) }
     LifecycleResumeEffect(Unit) {
         resumes++
@@ -74,6 +89,18 @@ fun SettingsScreen(state: PlannerState, store: PlannerStore, showToast: (ToastDa
         Eyebrow("Preferences", color = Aurora.Glacier)
         Spacer(Modifier.height(8.dp))
         Text("Settings", style = MaterialTheme.typography.displayMedium, color = Aurora.Frost)
+
+        Group("Organise") {
+            val tops = com.borealis.planner.data.PlannerLogic.topCategories(state)
+            SettingRow(
+                "Categories",
+                if (tops.isEmpty()) "Group tasks into categories and subcategories, like Uni › BIO101."
+                else tops.joinToString(" · ") { it.name } + " · ${state.categories.size - tops.size} subcategories",
+                icon = R.drawable.ic_folder,
+                iconTint = Aurora.Borealis,
+                onClick = onManageCategories,
+            ) { PillButton(if (tops.isEmpty()) "Set up" else "Edit", onManageCategories, tone = Tone.Accent) }
+        }
 
         Group("Planning") {
             SettingRow(
@@ -155,6 +182,60 @@ fun SettingsScreen(state: PlannerState, store: PlannerStore, showToast: (ToastDa
                     AlarmScheduler.scheduleTest(context)
                     showToast(ToastData("Test alarm rings in 5 seconds"))
                 }, tone = Tone.Accent)
+            }
+        }
+
+        Group("App") {
+            val p = updates.phase
+            SettingRow(
+                "Borealis " + Updater.installedVersionName(context),
+                when (p) {
+                    is UpdateController.Phase.Checking -> "Checking for updates…"
+                    is UpdateController.Phase.UpToDate -> "You're on the newest version."
+                    is UpdateController.Phase.Available -> "Version ${p.release.versionName} is ready to install."
+                    is UpdateController.Phase.Downloading -> "Downloading ${p.release.versionName}… ${(p.progress * 100).toInt()}%"
+                    is UpdateController.Phase.Failed -> p.message
+                    else -> "Updates install over this copy and keep all your tasks."
+                },
+                icon = R.drawable.ic_update,
+                iconTint = Aurora.Borealis,
+            ) {
+                PillButton(
+                    if (updates.available != null) "Update" else "Check",
+                    { if (updates.available != null) updates.sheetOpen = true else updates.check() },
+                    tone = Tone.Accent,
+                )
+            }
+            Divider()
+            SettingRow("Back up tasks", "Save everything to a file, e.g. in Downloads or Google Drive.", icon = R.drawable.ic_save, iconTint = Aurora.Glacier) {
+                PillButton("Save", backup)
+            }
+            Divider()
+            SettingRow("Restore from backup", "Replace what's here with a saved backup file.", icon = R.drawable.ic_restore, iconTint = Aurora.Glacier) {
+                PillButton("Open", restore)
+            }
+            pendingRestore?.let { text ->
+                val preview = remember(text) { runCatching { com.borealis.planner.data.Json.decode(text) }.getOrNull() }
+                Column(Modifier.padding(16.dp).fillMaxWidth().background(Aurora.Flare.copy(alpha = 0.12f), RoundedCornerShape(14.dp)).padding(14.dp)) {
+                    Text("Replace everything with this backup?", style = MaterialTheme.typography.titleSmall, color = Aurora.Frost)
+                    Text(
+                        if (preview != null) "It has ${preview.tasks.size} tasks and ${preview.categories.size} categories. What's in Borealis now will be replaced." else "This file couldn't be read.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Aurora.Mist,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Row {
+                        if (preview != null) {
+                            PillButton("Replace", {
+                                val ok = store.importJson(text)
+                                pendingRestore = null
+                                showToast(ToastData(if (ok) "Backup restored" else "That file isn't a Borealis backup."))
+                            }, tone = Tone.Danger)
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        PillButton("Cancel", { pendingRestore = null })
+                    }
+                }
             }
         }
 

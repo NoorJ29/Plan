@@ -176,10 +176,80 @@ class PlannerLogicTest {
         assertEquals("Run 5k", s.series[0].title)
     }
 
+    @Test fun categoriesAndSubcategories() {
+        var s = PlannerState()
+        val (s1, uni) = PlannerLogic.addCategory(s, "Uni"); s = s1
+        val (s2, bio) = PlannerLogic.addCategory(s, "BIO101", uni!!.id); s = s2
+        val (s3, home) = PlannerLogic.addCategory(s, "Home"); s = s3
+        // same name reuses the existing one
+        val (s4, again) = PlannerLogic.addCategory(s, "uni"); s = s4
+        assertEquals(uni.id, again!!.id)
+        assertEquals(listOf("Uni", "Home"), PlannerLogic.topCategories(s).map { it.name })
+        assertEquals("Uni › BIO101", PlannerLogic.pathLabel(s, bio!!.id))
+        assertEquals(uni.color, PlannerLogic.colorOf(s, bio.id))
+        s = PlannerLogic.add(s, draft("Lab report").copy(categoryId = bio.id), mon)
+        s = PlannerLogic.add(s, draft("Read chapter 3").copy(categoryId = uni.id), mon)
+        s = PlannerLogic.add(s, draft("Laundry").copy(categoryId = home!!.id), mon)
+        s = PlannerLogic.add(s, draft("Call bank"), mon)
+        val groups = PlannerLogic.groupByCategory(s, PlannerLogic.openOn(s, mon))
+        assertEquals(listOf("Uni", "Home", null), groups.map { it.category?.name })
+        assertEquals(listOf(null, "BIO101"), groups[0].subs.map { it.sub?.name })
+        assertEquals("Read chapter 3", groups[0].subs[0].tasks.single().title)
+        assertTrue(PlannerLogic.inCategory(s, s.tasks.first { it.title == "Lab report" }, uni.id))
+        // move Home above Uni
+        s = PlannerLogic.moveCategory(s, home.id, -1)
+        assertEquals(listOf("Home", "Uni"), PlannerLogic.topCategories(s).map { it.name })
+        // deleting a subcategory moves its tasks up to the parent
+        s = PlannerLogic.deleteCategory(s, bio.id)
+        assertEquals(uni.id, s.tasks.first { it.title == "Lab report" }.categoryId)
+        // deleting a category leaves its tasks uncategorised
+        s = PlannerLogic.deleteCategory(s, uni.id)
+        assertNull(s.tasks.first { it.title == "Lab report" }.categoryId)
+        assertEquals(1, s.categories.size)
+    }
+
+    @Test fun repeatingTaskKeepsCategory() {
+        var (s, gym) = PlannerLogic.addCategory(PlannerState(), "Health")
+        s = PlannerLogic.add(s, draft("Gym", repeat = Repeat.DAILY).copy(categoryId = gym!!.id), mon)
+        assertTrue(s.tasks.all { it.categoryId == gym.id })
+        s = PlannerLogic.generate(s, listOf(mon + 2))
+        assertEquals(gym.id, s.tasks.first { it.day == mon + 2 }.categoryId)
+        val (s2, other) = PlannerLogic.addCategory(s, "Fitness"); s = s2
+        s = PlannerLogic.setTaskCategory(s, s.tasks.first { it.day == mon }.id, other!!.id, mon)
+        assertTrue(s.tasks.all { it.categoryId == other.id })
+        assertEquals(other.id, s.series.single().categoryId)
+    }
+
+    @Test fun tagsMatchCategories() {
+        var s = PlannerState()
+        val (a, uni) = PlannerLogic.addCategory(s, "Uni"); s = a
+        val (b, bio) = PlannerLogic.addCategory(s, "BIO 101", uni!!.id); s = b
+        val (c, _) = PlannerLogic.addCategory(s, "Home"); s = c
+        assertEquals(bio!!.id, PlannerLogic.matchTag(s, "bio101")?.id)
+        assertEquals(uni.id, PlannerLogic.matchTag(s, "UNI")?.id)
+        assertEquals("Home", PlannerLogic.matchTag(s, "ho")?.name)
+        assertNull(PlannerLogic.matchTag(s, "work"))
+    }
+
+    @Test fun widgetCategoryCycles() {
+        var s = PlannerState()
+        s = PlannerLogic.addCategory(s, "Uni").first
+        s = PlannerLogic.addCategory(s, "Home").first
+        s = PlannerLogic.cycleWidgetCategory(s, 7)
+        assertEquals("Uni", PlannerLogic.category(s, s.widgetCategory[7])?.name)
+        s = PlannerLogic.cycleWidgetCategory(s, 7)
+        assertEquals("Home", PlannerLogic.category(s, s.widgetCategory[7])?.name)
+        s = PlannerLogic.cycleWidgetCategory(s, 7)
+        assertNull(s.widgetCategory[7])
+    }
+
     @Test fun jsonRoundTrip() {
         var s = PlannerLogic.add(PlannerState(), draft("Weekly review", repeat = Repeat.WEEKLY, weekdays = setOf(5), time = 17 * 60), mon)
         s = PlannerLogic.add(s, draft("Buy milk").copy(priority = Priority.HIGH, subtasks = listOf(Subtask(title = "Oat"))), mon)
-        s = s.copy(settings = s.settings.copy(lockCard = true, widget = WidgetStyle(WidgetTheme.EMBER, 0.5f, false)), widgetTomorrow = setOf(42))
+        val (s2, cat) = PlannerLogic.addCategory(s, "Uni"); s = s2
+        val (s3, sub) = PlannerLogic.addCategory(s, "BIO101", cat!!.id); s = s3
+        s = PlannerLogic.add(s, draft("Lab report").copy(categoryId = sub!!.id), mon)
+        s = s.copy(settings = s.settings.copy(lockCard = true, groupByCategory = false, widget = WidgetStyle(WidgetTheme.EMBER, 0.5f, false)), widgetTomorrow = setOf(42), widgetCategory = mapOf(42 to cat.id), collapsed = setOf(cat.id))
         val back = Json.decode(Json.encode(s))
         assertEquals(s, back)
     }

@@ -11,8 +11,10 @@ object QuickParse {
         val dayOffset: Int? = null,
         val time: Int? = null,
         val priority: Priority? = null,
+        /** A "#tag" naming a category, without the '#'. */
+        val tag: String? = null,
     ) {
-        val found: Boolean get() = dayOffset != null || time != null || priority != null
+        val found: Boolean get() = dayOffset != null || time != null || priority != null || tag != null
     }
 
     // Note: Android's regex engine (ICU) reads "[:" as the start of a POSIX class,
@@ -22,6 +24,7 @@ object QuickParse {
     private val time24 = Regex("""(?i)(?<![\p{L}\d\:])(?:at\s+)?([01]?\d|2[0-3])[.\:]([0-5]\d)(?![\p{L}\d\:])""")
     private val timeWords = Regex("""(?i)(?<![\p{L}\d])(?:at\s+)?(noon|midday|midnight)(?![\p{L}\d])""")
     private val atHour = Regex("""(?i)(?<![\p{L}\d])at\s+(1[0-2]|[1-9])(?![\p{L}\d\:.])""")
+    private val hashtag = Regex("""(?<=^|\s)#([\p{L}\d][\p{L}\d_\-]*)""")
     private val bangs = Regex("""(?<=^|\s)(!{1,3})(?=\s|$)""")
 
     fun parse(input: String): Result {
@@ -29,6 +32,12 @@ object QuickParse {
         var dayOffset: Int? = null
         var time: Int? = null
         var priority: Priority? = null
+        var tag: String? = null
+
+        hashtag.find(text)?.let { m ->
+            tag = m.groupValues[1]
+            text = text.removeRange(m.range)
+        }
 
         dayWords.find(text)?.let { m ->
             dayOffset = when (m.groupValues[1].lowercase()) {
@@ -77,6 +86,6 @@ object QuickParse {
         }
 
         val clean = text.replace(Regex("""\s{2,}"""), " ").trim().trimEnd(',', '-', '·').trim()
-        return Result(clean, dayOffset, time, priority)
+        return Result(clean, dayOffset, time, priority, tag)
     }
 }

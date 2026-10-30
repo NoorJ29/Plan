@@ -1,0 +1,27 @@
+name: Keep signing key
+
+# The app's signing key lives in this repo's Actions cache. Caches unused for 7 days are
+# deleted, and a new key would stop updates installing over the old app. Touching the
+# cache every few days keeps it alive between builds.
+on:
+  schedule:
+    - cron: "17 3 */3 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  touch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Restore signing key
+        id: key
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.borealis-signing
+          key: borealis-signing-v1
+          fail-on-cache-miss: false
+      - name: Report
+        run: |
+          if [ "${{ steps.key.outputs.cache-hit }}" = "true" ]; then echo "Signing key present."; else echo "::warning::Signing key cache is missing."; fi

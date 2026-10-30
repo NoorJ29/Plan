@@ -45,6 +45,7 @@ class MainActivity : ComponentActivity() {
 
     private fun handle(intent: Intent?) {
         if (intent?.action == ACTION_ADD) {
+            pendingCategory = intent.getStringExtra(EXTRA_CATEGORY)
             addRequest.value = intent.getLongExtra(EXTRA_DAY, Day.today())
             intent.action = Intent.ACTION_MAIN
         }
@@ -53,5 +54,10 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val ACTION_ADD = "com.borealis.planner.action.ADD"
         const val EXTRA_DAY = "day"
+        const val EXTRA_CATEGORY = "category"
+
+        /** Category to preselect in the "new task" sheet opened from a widget. */
+        @Volatile
+        var pendingCategory: String? = null
     }
 }

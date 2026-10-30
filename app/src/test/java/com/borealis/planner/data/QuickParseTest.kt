@@ -56,6 +56,20 @@ class QuickParseTest {
         assertNull(r.priority)
     }
 
+    @Test fun hashtagPicksCategory() {
+        val r = QuickParse.parse("Lab report #bio101 tomorrow 9am")
+        assertEquals("Lab report", r.title)
+        assertEquals("bio101", r.tag)
+        assertEquals(1, r.dayOffset)
+        assertEquals(9 * 60, r.time)
+    }
+
+    @Test fun hashInsideWordIgnored() {
+        val r = QuickParse.parse("Fix C# homework")
+        assertEquals("Fix C# homework", r.title)
+        assertNull(r.tag)
+    }
+
     @Test fun wordsContainingTodayAreKept() {
         val r = QuickParse.parse("Todays notes")
         assertEquals("Todays notes", r.title)

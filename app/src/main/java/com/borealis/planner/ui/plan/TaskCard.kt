@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -49,6 +51,8 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.unit.Dp
 import com.borealis.planner.R
 import com.borealis.planner.data.AlertType
 import com.borealis.planner.data.Day
@@ -89,6 +93,9 @@ fun TaskCard(
     onExpand: () -> Unit,
     cb: CardCallbacks,
     modifier: Modifier = Modifier,
+    category: String? = null,
+    categoryTint: Color? = null,
+    indent: Dp = 0.dp,
 ) {
     val forward = if (task.day < today) today else task.day + 1
     val forwardLabel = when (forward) {
@@ -106,8 +113,8 @@ fun TaskCard(
         CardMode.Open -> SwipeAction(forwardLabel, R.drawable.ic_moon, Aurora.Glacier) { cb.move(task, forward) }
     }
 
-    SwipeBox(left = left, right = right, modifier = modifier.padding(vertical = 5.dp)) {
-        CardBody(task, mode, today, use24, nowMinutes, expanded, onExpand, cb, forward, forwardLabel)
+    SwipeBox(left = left, right = right, modifier = modifier.padding(start = indent, top = 5.dp, bottom = 5.dp)) {
+        CardBody(task, mode, today, use24, nowMinutes, expanded, onExpand, cb, forward, forwardLabel, category, categoryTint)
     }
 }
 
@@ -123,6 +130,8 @@ private fun CardBody(
     cb: CardCallbacks,
     forward: Long,
     forwardLabel: String,
+    category: String?,
+    categoryTint: Color?,
 ) {
     val tint = when {
         mode == CardMode.Missed -> Aurora.Ember
@@ -170,7 +179,7 @@ private fun CardBody(
                     maxLines = if (expanded) 5 else 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                MetaRow(task, use24, overdue, mode)
+                MetaRow(task, use24, overdue, mode, category, categoryTint)
             }
             if (task.priority != Priority.NONE && !task.done) {
                 Spacer(Modifier.width(10.dp))
@@ -184,8 +193,19 @@ private fun CardBody(
 }
 
 @Composable
-private fun MetaRow(task: Task, use24: Boolean, overdue: Boolean, mode: CardMode) {
+@OptIn(ExperimentalLayoutApi::class)
+private fun MetaRow(task: Task, use24: Boolean, overdue: Boolean, mode: CardMode, category: String?, categoryTint: Color?) {
     val items = ArrayList<@Composable () -> Unit>()
+    if (category != null) {
+        val c = categoryTint ?: Aurora.Mist
+        items += {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CategoryDot(c, 7.dp)
+                Spacer(Modifier.width(5.dp))
+                Text(category, style = Readout, color = c.copy(alpha = 0.9f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 150.dp))
+            }
+        }
+    }
     task.time?.let { time ->
         val label = Day.formatTime(time, use24)
         items += { MetaBit(R.drawable.ic_clock, label, if (overdue) Aurora.Ember else Aurora.Mist) }
@@ -226,8 +246,8 @@ private fun MetaRow(task: Task, use24: Boolean, overdue: Boolean, mode: CardMode
     }
     if (items.isEmpty()) return
     Spacer(Modifier.height(5.dp))
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        items.forEach { it() }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        items.forEach { Box(Modifier.align(Alignment.CenterVertically)) { it() } }
     }
 }
 

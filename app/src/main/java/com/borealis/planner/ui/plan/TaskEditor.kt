@@ -88,7 +88,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 sealed interface EditorTarget {
-    data class New(val day: Long) : EditorTarget
+    data class New(val day: Long, val categoryId: String? = null) : EditorTarget
     data class Existing(val id: String) : EditorTarget
 }
 
@@ -134,6 +134,9 @@ fun TaskEditorSheet(
     val steps = remember(target) { mutableStateListOf<Subtask>().apply { addAll(initial.subtasks) } }
     var newStep by remember(target) { mutableStateOf("") }
     var allUpcoming by remember(target) { mutableStateOf(false) }
+    val presetCategory = (target as? EditorTarget.New)?.categoryId
+    var categorySet by remember(target) { mutableStateOf(!isNew || presetCategory != null) }
+    var categoryId by remember(target) { mutableStateOf(if (isNew) presetCategory else initial.categoryId) }
     var picker by remember { mutableStateOf<Picker?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
     var saveRequested by remember { mutableStateOf(false) }
@@ -151,6 +154,9 @@ fun TaskEditorSheet(
         alertSet -> alert
         else -> AlertType.REMINDER
     }
+    val tagMatch = remember(parsed.tag, state.categories) { parsed.tag?.let { PlannerLogic.matchTag(state, it) } }
+    val newTagName = if (isNew && !categorySet && parsed.tag != null && tagMatch == null) parsed.tag.replaceFirstChar { it.uppercase() } else null
+    val effCategory = if (categorySet) categoryId else tagMatch?.id
     val cleanTitle = if (isNew) parsed.title else title.trim()
     val canSave = cleanTitle.isNotBlank()
     val repeatChanged = series != null && repeat != series.repeat
@@ -172,6 +178,7 @@ fun TaskEditorSheet(
     fun save() {
         if (!canSave) return
         val pendingStep = newStep.trim()
+        val finalCategory = if (newTagName != null) store.addCategory(newTagName)?.id else effCategory
         val draft = TaskDraft(
             title = cleanTitle,
             notes = notes,
@@ -183,6 +190,7 @@ fun TaskEditorSheet(
             subtasks = steps.toList() + if (pendingStep.isNotEmpty()) listOf(Subtask(title = pendingStep)) else emptyList(),
             repeat = repeat,
             weekdays = weekdays,
+            categoryId = finalCategory,
         )
         if (existing == null) {
             store.add(draft)
@@ -192,7 +200,8 @@ fun TaskEditorSheet(
                 effAlert == AlertType.ALARM -> " · alarm at ${Day.formatTime(effTime, use24)}"
                 else -> " · reminder at ${Day.formatTime(effTime, use24)}"
             }
-            showToast(ToastData("Added to $whenText$alertText"))
+            val where = PlannerLogic.pathLabel(store.current, finalCategory)?.let { " · $it" } ?: ""
+            showToast(ToastData("Added to $whenText$where$alertText"))
         } else {
             store.edit(existing.id, draft, allUpcoming)
             showToast(ToastData("Saved"))
@@ -296,6 +305,10 @@ fun TaskEditorSheet(
                             parsed.dayOffset?.let { add(Day.label(today + it, today)) }
                             parsed.time?.let { add(Day.formatTime(it, use24)) }
                             parsed.priority?.let { add("${it.label.lowercase()} priority") }
+                            if (!categorySet) {
+                                tagMatch?.let { add(PlannerLogic.pathLabel(state, it.id) ?: it.name) }
+                                newTagName?.let { add("new category $it") }
+                            }
                         }.joinToString(" · ", prefix = "Got it: "),
                         style = MaterialTheme.typography.bodySmall,
                         color = Aurora.Ion,
@@ -320,6 +333,9 @@ fun TaskEditorSheet(
                 },
             )
             Hairline()
+
+            Label("Category")
+            CategoryPicker(state, store, effCategory) { categorySet = true; categoryId = it }
 
             Label("When")
             ChipRow {

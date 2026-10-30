@@ -142,8 +142,52 @@ class PlannerStore private constructor(private val app: Context) {
     }
 
     fun forgetWidgets(ids: IntArray) = update { s ->
-        val next = s.widgetTomorrow - ids.toSet()
-        if (next == s.widgetTomorrow) s else s.copy(widgetTomorrow = next)
+        val gone = ids.toSet()
+        val next = s.widgetTomorrow - gone
+        val cats = s.widgetCategory - gone
+        if (next == s.widgetTomorrow && cats == s.widgetCategory) s else s.copy(widgetTomorrow = next, widgetCategory = cats)
+    }
+
+    // -------------------------------------------------------------- categories
+
+    /** Adds a category (or subcategory) and returns it; an existing one with the same name is reused. */
+    fun addCategory(name: String, parentId: String? = null, color: Int? = null): Category? {
+        var made: Category? = null
+        update { s -> val (n, c) = PlannerLogic.addCategory(s, name, parentId, color); made = c; n }
+        return made
+    }
+
+    fun renameCategory(id: String, name: String) = update { PlannerLogic.renameCategory(it, id, name) }
+
+    fun recolorCategory(id: String, color: Int) = update { PlannerLogic.recolorCategory(it, id, color) }
+
+    fun moveCategory(id: String, delta: Int) = update { PlannerLogic.moveCategory(it, id, delta) }
+
+    fun deleteCategory(id: String) = update { PlannerLogic.deleteCategory(it, id) }
+
+    fun setTaskCategory(taskId: String, categoryId: String?) =
+        update { PlannerLogic.setTaskCategory(it, taskId, categoryId, today) }
+
+    fun cycleWidgetCategory(appWidgetId: Int) = update { PlannerLogic.cycleWidgetCategory(it, appWidgetId) }
+
+    fun toggleCollapsed(key: String) = update { PlannerLogic.toggleCollapsed(it, key) }
+
+    // -------------------------------------------------------------- backup
+
+    fun exportJson(): String = Json.encode(current)
+
+    /** Replaces everything with a backup. Returns false when [text] isn't a Borealis backup. */
+    fun importJson(text: String): Boolean {
+        val decoded = try {
+            val o = org.json.JSONObject(text)
+            if (!o.has("tasks")) return false
+            Json.decode(text)
+        } catch (e: Exception) {
+            return false
+        }
+        update { decoded.copy(lastRollover = 0, widgetTomorrow = it.widgetTomorrow, widgetCategory = it.widgetCategory) }
+        ensureFresh()
+        return true
     }
 
     companion object {

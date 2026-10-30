@@ -176,6 +176,12 @@ fun StudioScreen(
             ) {
                 AuroraSwitch(saved.showDone) { v -> store.settings { it.copy(widget = it.widget.copy(showDone = v)) } }
             }
+            SettingRow(
+                "Categories and steps",
+                "The Today checklist groups tasks under their categories and subcategories. Tap the category button on the widget to show one category at a time. Steps inside a task can be ticked right on the widget.",
+                icon = R.drawable.ic_folder,
+                iconTint = Aurora.Glacier,
+            )
         }
 
         Section("Add to home screen")

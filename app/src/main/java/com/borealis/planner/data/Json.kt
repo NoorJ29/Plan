@@ -14,6 +14,9 @@ object Json {
         put("series", JSONArray().apply { s.series.forEach { put(series(it)) } })
         put("settings", settings(s.settings))
         put("widgetTomorrow", JSONArray().apply { s.widgetTomorrow.forEach { put(it) } })
+        put("categories", JSONArray().apply { s.categories.forEach { put(category(it)) } })
+        put("widgetCategory", JSONObject().apply { s.widgetCategory.forEach { (k, v) -> put(k.toString(), v) } })
+        put("collapsed", JSONArray().apply { s.collapsed.forEach { put(it) } })
     }.toString()
 
     fun decode(text: String): PlannerState {
@@ -24,8 +27,31 @@ object Json {
             settings = o.optJSONObject("settings")?.let { settings(it) } ?: Settings(),
             lastRollover = o.optLong("lastRollover", 0L),
             widgetTomorrow = o.optJSONArray("widgetTomorrow").ints().toSet(),
+            categories = o.optJSONArray("categories").objects().mapNotNull { runCatching { category(it) }.getOrNull() },
+            widgetCategory = o.optJSONObject("widgetCategory")?.let { m ->
+                m.keys().asSequence().mapNotNull { k -> k.toIntOrNull()?.let { it to m.optString(k) } }.filter { it.second.isNotEmpty() }.toMap()
+            } ?: emptyMap(),
+            collapsed = o.optJSONArray("collapsed").strings().toSet(),
         )
     }
+
+    // ------------------------------------------------------------ category
+
+    private fun category(c: Category) = JSONObject().apply {
+        put("id", c.id)
+        put("name", c.name)
+        put("color", c.color)
+        c.parentId?.let { put("parentId", it) }
+        put("order", c.order)
+    }
+
+    private fun category(o: JSONObject) = Category(
+        id = o.getString("id"),
+        name = o.optString("name"),
+        color = o.optInt("color", 0),
+        parentId = o.optStringOrNull("parentId"),
+        order = o.optInt("order", 0),
+    )
 
     // ------------------------------------------------------------ task
 
@@ -48,6 +74,7 @@ object Json {
         put("slips", JSONArray().apply { t.slips.forEach { put(it) } })
         t.snoozeUntil?.let { put("snoozeUntil", it) }
         put("createdAt", t.createdAt)
+        t.categoryId?.let { put("categoryId", it) }
     }
 
     private fun task(o: JSONObject) = Task(
@@ -69,6 +96,7 @@ object Json {
         slips = o.optJSONArray("slips").longs(),
         snoozeUntil = o.optLongOrNull("snoozeUntil"),
         createdAt = o.optLong("createdAt", 0L),
+        categoryId = o.optStringOrNull("categoryId"),
     )
 
     // ------------------------------------------------------------ series
@@ -87,6 +115,7 @@ object Json {
         put("startDay", s.startDay)
         s.endDay?.let { put("endDay", it) }
         put("skipDays", JSONArray().apply { s.skipDays.forEach { put(it) } })
+        s.categoryId?.let { put("categoryId", it) }
     }
 
     private fun series(o: JSONObject) = Series(
@@ -103,6 +132,7 @@ object Json {
         startDay = o.getLong("startDay"),
         endDay = o.optLongOrNull("endDay"),
         skipDays = o.optJSONArray("skipDays").longs().toSet(),
+        categoryId = o.optStringOrNull("categoryId"),
     )
 
     // ------------------------------------------------------------ settings
@@ -116,6 +146,7 @@ object Json {
         put("widgetTheme", s.widget.theme.name)
         put("widgetOpacity", s.widget.opacity.toDouble())
         put("widgetShowDone", s.widget.showDone)
+        put("groupByCategory", s.groupByCategory)
     }
 
     private fun settings(o: JSONObject): Settings {
@@ -131,6 +162,7 @@ object Json {
                 opacity = o.optDouble("widgetOpacity", d.widget.opacity.toDouble()).toFloat().coerceIn(0.2f, 1f),
                 showDone = o.optBoolean("widgetShowDone", d.widget.showDone),
             ),
+            groupByCategory = o.optBoolean("groupByCategory", d.groupByCategory),
         )
     }
 

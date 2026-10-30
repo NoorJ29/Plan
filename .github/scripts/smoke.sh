@@ -53,7 +53,7 @@ add_task() {  # $1 plain text; typed word by word like a person would
   local first=1
   for w in $1; do
     [ "$first" = 1 ] || adb shell input keyevent 62
-    adb shell input text "$w"
+    adb shell input text "'$w'"   # quoted so the device shell keeps # and !
     first=0
     sleep 0.7
   done
@@ -83,6 +83,44 @@ shot 05-card-expanded 2
 tap_text "Tomorrow"
 shot 06-tomorrow 3
 tap_text "Today"
+sleep 1
+
+# ---- categories and subcategories ----
+tap_text "Add categories"
+sleep 2
+tap_text "New category"; sleep 1
+adb shell input text Uni; adb shell input keyevent 66; sleep 1
+tap_text "Add subcategory"; sleep 1
+adb shell input text BIO101; adb shell input keyevent 66; sleep 1
+tap_text "New category"; sleep 1
+adb shell input text Home; adb shell input keyevent 66; sleep 1
+shot 06a-category-manager 2
+adb shell input keyevent 4; sleep 1
+adb shell input keyevent 4; sleep 2
+
+for t in "Revise notes #uni 4pm" "Groceries #home 6pm" "Pay rent #money !"; do
+  add_task "$t"; adb shell input keyevent 66; sleep 3
+done
+add_task "Lab report #bio101 !!"
+shot 06b-editor-tag 1
+adb shell input swipe 540 1300 540 500 300; sleep 1
+adb shell input swipe 540 1300 540 500 300; sleep 1
+tap_text "Add a step"; sleep 1
+adb shell input text Intro; adb shell input keyevent 66; sleep 1
+adb shell input text Method; adb shell input keyevent 66; sleep 1
+adb shell input swipe 540 1300 540 500 300; sleep 1
+shot 06c-editor-steps 1
+tap_text "Add to today"
+sleep 3
+adb shell am start -n $PKG/.MainActivity >/dev/null
+shot 06d-plan-grouped 3
+adb shell input swipe 540 1800 540 900 400
+shot 06e-plan-grouped-lower 2
+adb shell input swipe 540 900 540 1900 400
+sleep 1
+tap_text "Uni"
+shot 06f-filter-uni 2
+tap_text "All"
 sleep 1
 
 tap_text "Recap"
@@ -126,12 +164,28 @@ tap_text "Tomorrow"
 shot 11b-widget-tomorrow 4
 tap_text "Today"
 sleep 2
+tap_text "All"
+shot 11c-widget-category 4
+tap_text "Uni"
+sleep 2
+tap_text "BIO101"
+sleep 2
 adb shell dumpsys appwidget | grep -E "provider=|id=" | head -20 > shots/appwidgets.txt || true
 
 adb shell am start -n $PKG/.MainActivity >/dev/null
 sleep 5
 tap_text "Settings"
 shot 12-settings 3
+adb shell input swipe 540 1900 540 500 400
+sleep 1
+adb shell input swipe 540 1900 540 500 400
+shot 12b-settings-app 2
+tap_text "Check"
+shot 12c-update-check 5
+adb shell input swipe 540 600 540 1900 400
+sleep 1
+adb shell input swipe 540 600 540 1900 400
+sleep 1
 tap_text "Test"
 sleep 1
 adb shell input keyevent 26   # screen off so the alarm has to wake it

@@ -75,9 +75,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp app/build/outputs/apk/release/app-release.apk Borealis.apk
+          git log -1 --pretty=%B | grep -v -i -E "^(co-authored-by|claude-session):" | sed '/^\s*$/d' > notes.txt
+          echo "" >> notes.txt
+          echo "Open this page on your phone, tap Borealis.apk to download, then open it to install. Already have a version with an Update button (Settings › App)? Tap it there instead." >> notes.txt
           gh release create "v1.0.${{ github.run_number }}" Borealis.apk \
-            --title "Borealis 1.0 (build ${{ github.run_number }})" \
-            --notes "Open this page on your phone, tap Borealis.apk to download, then open it to install." \
+            --title "Borealis 1.0.${{ github.run_number }}" \
+            --notes-file notes.txt \
             --latest
 
       - name: Planner unit tests
